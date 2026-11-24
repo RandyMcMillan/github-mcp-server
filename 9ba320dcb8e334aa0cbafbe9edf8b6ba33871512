@@ -1,0 +1,4 @@
+Root cause: agents landing fix commits via MCP lost the debugging story — commit message records the what, not the why.
+Evidence: github/github-mcp-server issue #3939, PR #3940.
+Why this fix: teach git notes through the bundled repository-content-changes skill instead of adding new tooling; notes travel with the repo and survive the chat session.
+(This note itself is the demonstration: a commit on refs/notes/commits, written via the GitHub API.)
