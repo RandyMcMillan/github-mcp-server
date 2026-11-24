@@ -26,72 +26,10 @@ The list below is generated from the Go source. It covers tool **inventory and s
 
 <!-- START AUTOMATED INSIDERS TOOLS -->
 
-### `remote_mcp_ui_apps`
-
-- **create_pull_request** - Open new pull request
-  - **Required OAuth Scopes**: `repo`
-  - **MCP App UI**: `ui://github-mcp-server/pr-write`
-  - `base`: Branch to merge into (string, required)
-  - `body`: PR description (string, optional)
-  - `draft`: Create as draft PR (boolean, optional)
-  - `head`: Branch containing changes (string, required)
-  - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
-  - `title`: PR title (string, required)
-
-- **get_me** - Get my user profile
-  - **MCP App UI**: `ui://github-mcp-server/get-me`
-  - No parameters required
-
-- **issue_write** - Create or update issue/pull request
-  - **Required OAuth Scopes**: `repo`
-  - **MCP App UI**: `ui://github-mcp-server/issue-write`
-  - `assignees`: Usernames to assign to this issue (string[], optional)
-  - `body`: Issue body content (string, optional)
-  - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
-  - `issue_fields`: Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', or 'delete: true'. (object[], optional)
-  - `issue_number`: Issue number to update (number, optional)
-  - `labels`: Labels to apply to this issue (string[], optional)
-  - `method`: Write operation to perform on a single issue.
-    Options are:
-    - 'create' - creates a new issue.
-    - 'update' - updates an existing issue.
-     (string, required)
-  - `milestone`: Milestone number (number, optional)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `state`: New state (string, optional)
-  - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
-  - `title`: Issue title (string, optional)
-  - `type`: Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
-
-- **ui_get** - Get UI data
-  - **Required OAuth Scopes (any of)**: `repo`, `read:org`
-  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `repo`, `write:org`
-  - `method`: The type of data to fetch (string, required)
-  - `owner`: Repository owner (required for all methods) (string, required)
-  - `repo`: Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers) (string, optional)
-
-- **update_pull_request** - Edit pull request
-  - **Required OAuth Scopes**: `repo`
-  - **MCP App UI**: `ui://github-mcp-server/pr-edit`
-  - `base`: New base branch name (string, optional)
-  - `body`: New description (string, optional)
-  - `draft`: Mark pull request as draft (true) or ready for review (false) (boolean, optional)
-  - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number to update (number, required)
-  - `repo`: Repository name (string, required)
-  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
-  - `state`: New state (string, optional)
-  - `title`: New title (string, optional)
-
 ### `file_blame`
 
 - **get_file_blame** - Get file blame information
-  - **Required OAuth Scopes**: `repo`
+  - **OAuth Challenge Scopes**: `repo`
   - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `end_line`: Optional 1-based ending line of the window of interest. Must be >= start_line when both are provided. (number, optional)
   - `owner`: Repository owner (username or organization) (string, required)
@@ -104,7 +42,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
 ### `issue_dependencies`
 
 - **issue_dependency_read** - Read issue dependencies
-  - **Required OAuth Scopes**: `repo`
+  - **OAuth Challenge Scopes**: `repo`
   - `issue_number`: The number of the issue (number, required)
   - `method`: The read operation to perform on a single issue's dependencies.
     Options are:
@@ -117,7 +55,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - `repo`: The name of the repository (string, required)
 
 - **issue_dependency_write** - Change issue dependency
-  - **Required OAuth Scopes**: `repo`
+  - **OAuth Challenge Scopes**: `repo`
   - `issue_number`: The number of the subject issue (number, required)
   - `method`: The action to perform.
     Options are:
@@ -133,122 +71,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
     - 'blocked_by' - the subject issue is blocked by the related issue.
     - 'blocking' - the subject issue blocks the related issue. (string, required)
 
-### `fields_param`
-
-- **get_file_contents** - Get file or directory contents
-  - **Required OAuth Scopes**: `repo`
-  - `fields`: Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'. (string[], optional)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Path to file/directory (string, optional)
-  - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)
-  - `repo`: Repository name (string, required)
-  - `sha`: Accepts optional commit SHA. If specified, it will be used instead of ref (string, optional)
-
-- **list_commits** - List commits
-  - **Required OAuth Scopes**: `repo`
-  - `author`: Author username or email address to filter commits by (string, optional)
-  - `fields`: Subset of fields to return for each commit. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields, e.g. just 'sha' and 'html_url'. (string[], optional)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `path`: Only commits containing this file path will be returned (string, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `sha`: Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA. (string, optional)
-  - `since`: Only commits after this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD) (string, optional)
-  - `until`: Only commits before this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD) (string, optional)
-
-- **list_issues** - List issues
-  - **Required OAuth Scopes**: `repo`
-  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
-  - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
-  - `field_filters`: Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date). (object[], optional)
-  - `fields`: Subset of fields to return for each issue. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' and 'field_values' in particular drops the largest per-result data. (string[], optional)
-  - `labels`: Filter by labels (string[], optional)
-  - `orderBy`: Order issues by field. If provided, the 'direction' also needs to be provided. (string, optional)
-  - `owner`: Repository owner (string, required)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
-  - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
-
-- **list_pull_requests** - List pull requests
-  - **Required OAuth Scopes**: `repo`
-  - `base`: Filter by base branch (string, optional)
-  - `direction`: Sort direction (string, optional)
-  - `fields`: Subset of fields to return for each pull request. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' in particular drops the largest per-result data. (string[], optional)
-  - `head`: Filter by head user/org and branch (string, optional)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `sort`: Sort by (string, optional)
-  - `state`: Filter by state (string, optional)
-
-- **list_releases** - List releases
-  - **Required OAuth Scopes**: `repo`
-  - `fields`: Subset of fields to return for each release. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' in particular drops the largest per-release data. (string[], optional)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-
-- **search_code** - Search code
-  - **Required OAuth Scopes**: `repo`
-  - `fields`: Subset of fields to return for each code search result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'repository' and 'text_matches' in particular drops the largest per-result data. (string[], optional)
-  - `order`: Sort order for results (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `query`: Search query (GitHub code search REST). Implicit AND between terms; supports `OR`, `NOT`, and `"quoted phrase"` for exact match. Qualifiers: `repo:owner/repo`, `org:`, `user:`, `language:`, `path:dir` (prefix match), `filename:exact.ext`, `extension:`, `in:file`, `in:path`, `size:`, `is:archived`, `is:fork`. Max 256 chars. Examples: `WithContext language:go org:github`; `"package main" repo:o/r`; `func extension:go path:cmd repo:o/r`; `NOT TODO language:go repo:o/r`. (string, required)
-  - `sort`: Sort field ('indexed' only) (string, optional)
-
-- **search_issues** - Search issues
-  - **Required OAuth Scopes**: `repo`
-  - `fields`: Subset of fields to return for each issue result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data. (string[], optional)
-  - `order`: Sort order (string, optional)
-  - `owner`: Optional repository owner. If provided with repo, only issues for this repository are listed. (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `query`: Search query using GitHub issues search syntax (string, required)
-  - `repo`: Optional repository name. If provided with owner, only issues for this repository are listed. (string, optional)
-  - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
-
-- **search_pull_requests** - Search pull requests
-  - **Required OAuth Scopes**: `repo`
-  - `fields`: Subset of fields to return for each pull request result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data. (string[], optional)
-  - `order`: Sort order (string, optional)
-  - `owner`: Optional repository owner. If provided with repo, only pull requests for this repository are listed. (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `query`: Search query using GitHub pull request search syntax (string, required)
-  - `repo`: Optional repository name. If provided with owner, only pull requests for this repository are listed. (string, optional)
-  - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
-
 <!-- END AUTOMATED INSIDERS TOOLS -->
-
----
-
-## MCP Apps
-
-[MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) is an extension to the Model Context Protocol that enables servers to deliver interactive user interfaces to end users. Instead of returning plain text that the LLM must interpret and relay, tools can render forms, profiles, and dashboards right in the chat using MCP Apps.
-
-This means you can interact with GitHub visually: fill out forms to create issues, see user profiles with avatars, open pull requests — all without leaving your agent chat.
-
-### Supported tools
-
-The following tools have MCP Apps UIs:
-
-| Tool | Description |
-|------|-------------|
-| `get_me` | Displays your GitHub user profile with avatar, bio, and stats in a rich card |
-| `issue_write` | Opens an interactive form to create or update issues |
-| `create_pull_request` | Provides a full PR creation form to create a pull request (or a draft pull request) |
-
-### Client requirements
-
-MCP Apps requires a host that supports the [MCP Apps extension](https://modelcontextprotocol.io/docs/extensions/apps). Currently tested and working with:
-
-- **VS Code Insiders** — enable via the `chat.mcp.apps.enabled` setting
-- **Visual Studio Code** — enable via the `chat.mcp.apps.enabled` setting
 
 ---
 
@@ -277,6 +100,19 @@ Because this changes list tool response shape, clients that require JSON list re
 
 ---
 
+## Skills instead of server instructions
+
+Insiders Mode enables the `skills` feature flag. The server advertises the MCP
+skills extension and serves a tool-filtered catalog of workflow guidance instead
+of sending server instructions. Clients that do not consume skills receive no
+replacement instructions. Use the normal non-insiders configuration without the
+`skills` flag to retain existing server instructions.
+
+See [MCP skills](./feature-flags.md#mcp-skills) for activation, protocol details
+and client configuration.
+
+---
+
 ## How feature flags are resolved
 
 > [!NOTE]
@@ -288,10 +124,17 @@ Insiders is a **meta feature flag** — the same shape as `default` or `all` for
 
 1. **User input.** Users may opt into specific features:
    - Local server: `--features=<flag>,<flag>` CLI flag (or `GITHUB_FEATURES` env var).
-   - Self-hosted HTTP server: `X-MCP-Features: <flag>,<flag>` request header.
+   - HTTP server: `X-MCP-Features: <flag>,<flag>` request header or a
+     `?features=<flag>,<flag>` server URL. Header presence takes precedence,
+     and the two request channels are never combined.
 2. **Allowlist filter.** User-supplied flags are filtered against [`AllowedFeatureFlags`](../pkg/github/feature_flags.go). Anything not on the allowlist is silently dropped — flags missing from the allowlist can only be turned on by remote-server feature management, not by end users.
 3. **Insiders expansion.** If insiders mode is on (`--insiders`, `/insiders` route, or `X-MCP-Insiders: true`), every flag in [`InsidersFeatureFlags`](../pkg/github/feature_flags.go) is unioned in. The insiders expansion is **not** re-validated against the allowlist — insiders is a server-controlled switch that can reach internal-only flags.
 4. **Server-side fallback (remote server only).** Any flag not yet decided falls back to the remote server's feature manager, which can roll a feature out independently of user input or insiders membership.
+
+For tool availability, functional rules declare the flags they may read and are
+evaluated lazily after request narrowing. Short-circuiting skips unnecessary
+checks, and request-owned state memoizes each flag that is reached. The same
+state backs `deps.IsFeatureEnabled`.
 
 `AllowedFeatureFlags` and `InsidersFeatureFlags` are deliberately independent sets:
 
@@ -302,7 +145,9 @@ Insiders is a **meta feature flag** — the same shape as `default` or `all` for
 ### Adding a new feature flag
 
 1. Add a constant in `pkg/github/feature_flags.go`.
-2. Add it to `AllowedFeatureFlags` if end users should be able to opt in via `--features` / `X-MCP-Features`.
+2. Add it to `AllowedFeatureFlags` if end users should be able to opt in via
+   `--features`, `X-MCP-Features`, or the `features` URL query parameter.
 3. Add it to `InsidersFeatureFlags` if insiders mode should turn it on automatically.
-4. Gate the behavior on the concrete flag (`deps.IsFeatureEnabled(ctx, FeatureFlagX)`), never on `cfg.InsidersMode`. There is a `TestGitHubPackageDoesNotReadInsidersMode` guard test that fails if `pkg/github` reads `InsidersMode` directly.
-5. The MCP-diff CI workflow picks up new entries in `AllowedFeatureFlags` automatically — see `.github/workflows/mcp-diff.yml`.
+4. For tool availability, attach an `inventory.NewFeatureRule` that declares every flag used by its predicate. For behavior inside a handler, use `deps.IsFeatureEnabled(ctx, FeatureFlagX)`.
+5. Gate on concrete flags, never on `cfg.InsidersMode`. There is a `TestGitHubPackageDoesNotReadInsidersMode` guard test that fails if `pkg/github` reads `InsidersMode` directly.
+6. The MCP-diff CI workflow picks up new entries in `AllowedFeatureFlags` automatically — see `.github/workflows/mcp-diff.yml`.

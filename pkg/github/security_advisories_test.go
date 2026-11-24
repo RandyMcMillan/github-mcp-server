@@ -6,9 +6,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v89/github"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
+	"github.com/google/go-github/v92/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -18,7 +17,7 @@ import (
 func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 	toolDef := ListGlobalSecurityAdvisories(translations.NullTranslationHelper)
 	tool := toolDef.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	testSecurityToolSnapshot(t, tool)
 
 	assert.Equal(t, "list_global_security_advisories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -32,12 +31,10 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 
 	// Setup mock advisory for success case
 	mockAdvisory := &github.GlobalSecurityAdvisory{
-		SecurityAdvisory: github.SecurityAdvisory{
-			GHSAID:      github.Ptr("GHSA-xxxx-xxxx-xxxx"),
-			Summary:     github.Ptr("Test advisory"),
-			Description: github.Ptr("This is a test advisory."),
-			Severity:    github.Ptr("high"),
-		},
+		GHSAID:      new("GHSA-xxxx-xxxx-xxxx"),
+		Summary:     new("Test advisory"),
+		Description: new("This is a test advisory."),
+		Severity:    new("high"),
 	}
 
 	tests := []struct {
@@ -130,10 +127,45 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 	}
 }
 
+func Test_ListGlobalSecurityAdvisories_SwiftEcosystem(t *testing.T) {
+	// The server validates arguments against the tool schema, so an ecosystem
+	// missing from the enum is rejected before the API is ever called.
+	var gotEcosystem string
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetAdvisories: func(w http.ResponseWriter, r *http.Request) {
+			gotEcosystem = r.URL.Query().Get("ecosystem")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`[{"ghsa_id": "GHSA-xxxx-xxxx-xxxx"}]`))
+		},
+	}))
+	deps := BaseDeps{Client: client}
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	server.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	tool := ListGlobalSecurityAdvisories(translations.NullTranslationHelper)
+	tool.RegisterFunc(server, deps)
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = serverSession.Close() })
+	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+	clientSession, err := mcpClient.Connect(context.Background(), clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clientSession.Close() })
+
+	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "list_global_security_advisories",
+		Arguments: map[string]any{"ecosystem": "swift"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError, "unexpected error result: %v", result.Content)
+	assert.Equal(t, "swift", gotEcosystem)
+}
+
 func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 	toolDef := GetGlobalSecurityAdvisory(translations.NullTranslationHelper)
 	tool := toolDef.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	testSecurityToolSnapshot(t, tool)
 
 	assert.Equal(t, "get_global_security_advisory", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -145,12 +177,10 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 
 	// Setup mock advisory for success case
 	mockAdvisory := &github.GlobalSecurityAdvisory{
-		SecurityAdvisory: github.SecurityAdvisory{
-			GHSAID:      github.Ptr("GHSA-xxxx-xxxx-xxxx"),
-			Summary:     github.Ptr("Test advisory"),
-			Description: github.Ptr("This is a test advisory."),
-			Severity:    github.Ptr("high"),
-		},
+		GHSAID:      new("GHSA-xxxx-xxxx-xxxx"),
+		Summary:     new("Test advisory"),
+		Description: new("This is a test advisory."),
+		Severity:    new("high"),
 	}
 
 	tests := []struct {
@@ -240,7 +270,7 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 	// Verify tool definition once
 	toolDef := ListRepositorySecurityAdvisories(translations.NullTranslationHelper)
 	tool := toolDef.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	testSecurityToolSnapshot(t, tool)
 
 	assert.Equal(t, "list_repository_security_advisories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -256,16 +286,16 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 
 	// Setup mock advisories for success cases
 	adv1 := &github.SecurityAdvisory{
-		GHSAID:      github.Ptr("GHSA-1111-1111-1111"),
-		Summary:     github.Ptr("Repo advisory one"),
-		Description: github.Ptr("First repo advisory."),
-		Severity:    github.Ptr("high"),
+		GHSAID:      new("GHSA-1111-1111-1111"),
+		Summary:     new("Repo advisory one"),
+		Description: new("First repo advisory."),
+		Severity:    new("high"),
 	}
 	adv2 := &github.SecurityAdvisory{
-		GHSAID:      github.Ptr("GHSA-2222-2222-2222"),
-		Summary:     github.Ptr("Repo advisory two"),
-		Description: github.Ptr("Second repo advisory."),
-		Severity:    github.Ptr("medium"),
+		GHSAID:      new("GHSA-2222-2222-2222"),
+		Summary:     new("Repo advisory two"),
+		Description: new("Second repo advisory."),
+		Severity:    new("medium"),
 	}
 
 	tests := []struct {
@@ -384,14 +414,14 @@ func Test_ListRepositorySecurityAdvisories_IFC_FeatureFlag(t *testing.T) {
 	toolDef := ListRepositorySecurityAdvisories(translations.NullTranslationHelper)
 
 	publishedAdvisory := &github.SecurityAdvisory{
-		GHSAID:  github.Ptr("GHSA-1111-1111-1111"),
-		Summary: github.Ptr("Published advisory"),
-		State:   github.Ptr("published"),
+		GHSAID:  new("GHSA-1111-1111-1111"),
+		Summary: new("Published advisory"),
+		State:   new("published"),
 	}
 	draftAdvisory := &github.SecurityAdvisory{
-		GHSAID:  github.Ptr("GHSA-2222-2222-2222"),
-		Summary: github.Ptr("Draft advisory"),
-		State:   github.Ptr("draft"),
+		GHSAID:  new("GHSA-2222-2222-2222"),
+		Summary: new("Draft advisory"),
+		State:   new("draft"),
 	}
 
 	makeMockClient := func(isPrivate bool, advisories []*github.SecurityAdvisory) *http.Client {
@@ -501,7 +531,7 @@ func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 	// Verify tool definition once
 	toolDef := ListOrgRepositorySecurityAdvisories(translations.NullTranslationHelper)
 	tool := toolDef.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	testSecurityToolSnapshot(t, tool)
 
 	assert.Equal(t, "list_org_repository_security_advisories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -515,16 +545,16 @@ func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 	assert.ElementsMatch(t, schema.Required, []string{"org"})
 
 	adv1 := &github.SecurityAdvisory{
-		GHSAID:      github.Ptr("GHSA-aaaa-bbbb-cccc"),
-		Summary:     github.Ptr("Org repo advisory 1"),
-		Description: github.Ptr("First advisory"),
-		Severity:    github.Ptr("low"),
+		GHSAID:      new("GHSA-aaaa-bbbb-cccc"),
+		Summary:     new("Org repo advisory 1"),
+		Description: new("First advisory"),
+		Severity:    new("low"),
 	}
 	adv2 := &github.SecurityAdvisory{
-		GHSAID:      github.Ptr("GHSA-dddd-eeee-ffff"),
-		Summary:     github.Ptr("Org repo advisory 2"),
-		Description: github.Ptr("Second advisory"),
-		Severity:    github.Ptr("critical"),
+		GHSAID:      new("GHSA-dddd-eeee-ffff"),
+		Summary:     new("Org repo advisory 2"),
+		Description: new("Second advisory"),
+		Severity:    new("critical"),
 	}
 
 	tests := []struct {

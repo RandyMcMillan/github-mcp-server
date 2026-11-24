@@ -9,9 +9,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/github/github-mcp-server/pkg/github"
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/v2/pkg/github"
+	"github.com/github/github-mcp-server/v2/pkg/inventory"
+	"github.com/github/github-mcp-server/v2/pkg/skills/catalog"
+	"github.com/github/github-mcp-server/v2/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/spf13/cobra"
 )
@@ -19,7 +20,7 @@ import (
 var generateDocsCmd = &cobra.Command{
 	Use:   "generate-docs",
 	Short: "Generate documentation for tools and toolsets",
-	Long:  `Generate the automated sections of README.md and docs/remote-server.md with current tool and toolset information.`,
+	Long:  `Generate the automated sections of README.md and docs/remote-server.md with current tool, toolset, and bundled skill information.`,
 	RunE: func(_ *cobra.Command, _ []string) error {
 		return generateAllDocs()
 	},
@@ -61,9 +62,8 @@ func generateReadmeDocs(readmePath string) error {
 
 	// The README documents the default user experience: tools that are
 	// enabled with no special flags set. Installing a checker that reports
-	// every flag as disabled excludes tools gated by FeatureFlagEnable and
-	// keeps the legacy variants of tools gated by FeatureFlagDisable, so
-	// flag-gated duplicates don't appear twice.
+	// every flag as disabled keeps the default variants selected by functional
+	// feature rules, so flag-gated duplicates don't appear twice.
 	// Build() can only fail if WithTools specifies invalid tools - not used here
 	r, _ := github.NewInventory(t).
 		WithToolsets([]string{"all"}).
@@ -72,6 +72,11 @@ func generateReadmeDocs(readmePath string) error {
 
 	// Generate toolsets documentation
 	toolsetsDoc := generateToolsetsDoc(r)
+
+	skillsDoc, err := generateSkillsDoc()
+	if err != nil {
+		return err
+	}
 
 	// Generate tools documentation
 	toolsDoc := generateToolsDoc(r)
@@ -89,6 +94,11 @@ func generateReadmeDocs(readmePath string) error {
 		return err
 	}
 
+	updatedContent, err = replaceSection(updatedContent, "START AUTOMATED SKILLS", "END AUTOMATED SKILLS", skillsDoc)
+	if err != nil {
+		return err
+	}
+
 	// Replace tools section
 	updatedContent, err = replaceSection(updatedContent, "START AUTOMATED TOOLS", "END AUTOMATED TOOLS", toolsDoc)
 	if err != nil {
@@ -102,6 +112,27 @@ func generateReadmeDocs(readmePath string) error {
 	}
 
 	return nil
+}
+
+func generateSkillsDoc() (string, error) {
+	source, err := catalog.New()
+	if err != nil {
+		return "", fmt.Errorf("load bundled skills for README: %w", err)
+	}
+	entries, err := source.List(context.Background())
+	if err != nil {
+		return "", fmt.Errorf("list bundled skills for README: %w", err)
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Frontmatter.Name() < entries[j].Frontmatter.Name()
+	})
+
+	var buf strings.Builder
+	for _, entry := range entries {
+		name := entry.Frontmatter.Name()
+		fmt.Fprintf(&buf, "- [`%s`](pkg/skills/catalog/skills/%s/SKILL.md) — %s\n", name, name, entry.Frontmatter.Description())
+	}
+	return strings.TrimSuffix(buf.String(), "\n"), nil
 }
 
 func generateRemoteServerDocs(docsPath string) error {
@@ -219,27 +250,11 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 	// Tool name (no icon - section header already has the toolset icon)
 	fmt.Fprintf(buf, "- **%s** - %s\n", tool.Tool.Name, tool.Tool.Annotations.Title)
 
-	// OAuth scopes if present
-	if len(tool.RequiredScopes) > 0 {
-		// Scope filtering uses "any of" semantics (see scopes.HasRequiredScopes),
-		// so when multiple required scopes are listed, render them as alternatives
-		// rather than implying all are required.
-		scopeList := "`" + strings.Join(tool.RequiredScopes, "`, `") + "`"
-		if len(tool.RequiredScopes) > 1 {
-			fmt.Fprintf(buf, "  - **Required OAuth Scopes (any of)**: %s\n", scopeList)
-		} else {
-			fmt.Fprintf(buf, "  - **Required OAuth Scopes**: %s\n", scopeList)
-		}
-
-		// Only show accepted scopes if they differ from required scopes
-		if len(tool.AcceptedScopes) > 0 && !scopesEqual(tool.RequiredScopes, tool.AcceptedScopes) {
-			fmt.Fprintf(buf, "  - **Accepted OAuth Scopes**: `%s`\n", strings.Join(tool.AcceptedScopes, "`, `"))
-		}
+	if scopes := tool.ScopeAccess.Scopes; len(scopes) > 0 {
+		fmt.Fprintf(buf, "  - **OAuth Challenge Scopes**: `%s`\n", strings.Join(scopes, "`, `"))
 	}
 
-	// MCP App UI metadata (only rendered when the remote_mcp_ui_apps flag
-	// applied to the inventory; for the no-flags README this section is
-	// stripped by inventory.ToolsForRegistration before rendering).
+	// MCP App UI metadata.
 	if ui, ok := tool.Tool.Meta["ui"].(map[string]any); ok {
 		if uri, ok := ui["resourceUri"].(string); ok && uri != "" {
 			fmt.Fprintf(buf, "  - **MCP App UI**: `%s`\n", uri)
@@ -273,19 +288,7 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 				requiredStr = "required"
 			}
 
-			var typeStr string
-
-			// Get the type and description
-			switch prop.Type {
-			case "array":
-				if prop.Items != nil {
-					typeStr = prop.Items.Type + "[]"
-				} else {
-					typeStr = "array"
-				}
-			default:
-				typeStr = prop.Type
-			}
+			typeStr := schemaTypeString(prop)
 
 			// Indent any continuation lines in the description to maintain markdown formatting
 			description := indentMultilineDescription(prop.Description, "    ")
@@ -300,26 +303,38 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 	}
 }
 
-// scopesEqual checks if two scope slices contain the same elements (order-independent)
-func scopesEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
+func schemaTypeString(schema *jsonschema.Schema) string {
+	switch {
+	case schema.Type == "array":
+		if schema.Items != nil {
+			return schema.Items.Type + "[]"
+		}
+		return "array"
+	case schema.Type != "":
+		return schema.Type
+	case len(schema.Types) > 0:
+		return strings.Join(schema.Types, " | ")
 	}
 
-	// Create a map for quick lookup
-	aMap := make(map[string]bool, len(a))
-	for _, scope := range a {
-		aMap[scope] = true
+	var union []*jsonschema.Schema
+	switch {
+	case len(schema.AnyOf) > 0:
+		union = schema.AnyOf
+	case len(schema.OneOf) > 0:
+		union = schema.OneOf
+	default:
+		// A schema without type constraints accepts any value.
+		return "any"
 	}
 
-	// Check if all elements in b are in a
-	for _, scope := range b {
-		if !aMap[scope] {
-			return false
+	types := make([]string, 0, len(union))
+	for _, member := range union {
+		memberType := schemaTypeString(member)
+		if !slices.Contains(types, memberType) {
+			types = append(types, memberType)
 		}
 	}
-
-	return true
+	return strings.Join(types, " | ")
 }
 
 // indentMultilineDescription adds the specified indent to all lines after the first line.

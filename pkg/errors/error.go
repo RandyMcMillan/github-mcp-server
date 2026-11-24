@@ -6,10 +6,12 @@ import (
 	stderrors "errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v89/github"
+	"github.com/github/github-mcp-server/v2/pkg/sanitize"
+	"github.com/github/github-mcp-server/v2/pkg/utils"
+	"github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -163,8 +165,7 @@ func NewGitHubAPIErrorResponse(ctx context.Context, message string, resp *github
 		_, _ = addGitHubAPIErrorToContext(ctx, apiErr) // Explicitly ignore error for graceful handling
 	}
 
-	var rateLimitErr *github.RateLimitError
-	if stderrors.As(err, &rateLimitErr) {
+	if rateLimitErr, ok := stderrors.AsType[*github.RateLimitError](err); ok {
 		resetTime := rateLimitErr.Rate.Reset.Time
 		if !resetTime.IsZero() {
 			retryIn := time.Until(resetTime).Round(time.Second)
@@ -177,8 +178,7 @@ func NewGitHubAPIErrorResponse(ctx context.Context, message string, resp *github
 			"%s: GitHub API rate limit exceeded. Wait before retrying.", message))
 	}
 
-	var abuseErr *github.AbuseRateLimitError
-	if stderrors.As(err, &abuseErr) {
+	if abuseErr, ok := stderrors.AsType[*github.AbuseRateLimitError](err); ok {
 		if abuseErr.RetryAfter != nil {
 			retryAfter := abuseErr.RetryAfter.Round(time.Second)
 			if retryAfter > 0 {
@@ -191,7 +191,71 @@ func NewGitHubAPIErrorResponse(ctx context.Context, message string, resp *github
 			"%s: GitHub secondary rate limit exceeded. Wait before retrying.", message))
 	}
 
-	return utils.NewToolResultErrorFromErr(message, err)
+	return utils.NewToolResultErrorFromErr(message, formatGitHubValidationError(resp, err))
+}
+
+// formatGitHubValidationError exposes the parsed fields of 422 responses without
+// including request or response metadata from the underlying HTTP exchange.
+func formatGitHubValidationError(resp *github.Response, err error) error {
+	var ghErr *github.ErrorResponse
+	if !stderrors.As(err, &ghErr) {
+		return err
+	}
+
+	statusCode := 0
+	if ghErr.Response != nil {
+		statusCode = ghErr.Response.StatusCode
+	}
+	if statusCode == 0 && resp != nil {
+		statusCode = resp.StatusCode
+	}
+	if statusCode != http.StatusUnprocessableEntity {
+		return err
+	}
+
+	var parts []string
+	if summary := sanitizeGitHubValidationText(ghErr.Message); summary != "" {
+		parts = append(parts, summary)
+	}
+	for _, validationErr := range ghErr.Errors {
+		if detail := formatGitHubValidationDetail(validationErr); detail != "" {
+			parts = append(parts, detail)
+		}
+	}
+
+	if len(parts) == 0 {
+		return stderrors.New("GitHub API validation failed")
+	}
+	return stderrors.New(strings.Join(parts, "\n"))
+}
+
+func formatGitHubValidationDetail(validationErr github.Error) string {
+	resource := sanitizeGitHubValidationText(validationErr.Resource)
+	field := sanitizeGitHubValidationText(validationErr.Field)
+	code := sanitizeGitHubValidationText(validationErr.Code)
+	message := sanitizeGitHubValidationText(validationErr.Message)
+
+	location := strings.Trim(strings.Join([]string{resource, field}, "."), ".")
+	switch {
+	case location != "" && code != "":
+		location += " (" + code + ")"
+	case location == "":
+		location = code
+	}
+
+	switch {
+	case location != "" && message != "":
+		return location + ": " + message
+	case message != "":
+		return message
+	default:
+		return location
+	}
+}
+
+func sanitizeGitHubValidationText(value string) string {
+	sanitized := sanitize.PlainText(value)
+	return strings.Join(strings.Fields(sanitized), " ")
 }
 
 // NewGitHubGraphQLErrorResponse returns an mcp.NewToolResultError and retains the error in the context for access via middleware

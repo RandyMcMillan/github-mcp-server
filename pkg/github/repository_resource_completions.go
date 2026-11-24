@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -28,7 +29,9 @@ var RepositoryResourceArgumentResolvers = map[string]CompleteHandler{
 func RepositoryResourceCompletionHandler(getClient GetClientFn) func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
 	return func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
 		if req.Params.Ref.Type != "ref/resource" {
-			return nil, nil // Not a resource completion
+			return &mcp.CompleteResult{
+				Completion: mcp.CompletionResultDetails{Values: []string{}},
+			}, nil
 		}
 
 		argName := req.Params.Argument.Name
@@ -56,6 +59,9 @@ func RepositoryResourceCompletionHandler(getClient GetClientFn) func(ctx context
 		values, err := resolver(ctx, client, resolved, argValue)
 		if err != nil {
 			return nil, err
+		}
+		if values == nil {
+			values = []string{}
 		}
 		if len(values) > 100 {
 			values = values[:100]
@@ -106,7 +112,7 @@ func completeOwner(ctx context.Context, client *github.Client, _ map[string]stri
 	if argValue == "" {
 		return values, nil // No need to search if no argValue
 	}
-	users, _, err := client.Search.Users(ctx, argValue, &github.SearchOptions{ListOptions: github.ListOptions{PerPage: 100 - len(values)}})
+	users, _, err := client.Search.Users(ctx, argValue, &github.SearchOptions{PerPage: 100 - len(values)})
 	if err != nil || users == nil {
 		return nil, err
 	}
@@ -132,7 +138,7 @@ func completeRepo(ctx context.Context, client *github.Client, resolved map[strin
 	if argValue != "" {
 		query = fmt.Sprintf("%s %s", query, argValue)
 	}
-	repos, _, err := client.Search.Repositories(ctx, query, &github.SearchOptions{ListOptions: github.ListOptions{PerPage: 100}})
+	repos, _, err := client.Search.Repositories(ctx, query, &github.SearchOptions{PerPage: 100})
 	if err != nil || repos == nil {
 		return values, errors.New("failed to get repositories")
 	}
@@ -215,7 +221,7 @@ func completePRNumber(ctx context.Context, client *github.Client, resolved map[s
 		return values, errors.New("owner or repo not specified")
 	}
 
-	prs, _, err := client.Search.Issues(ctx, fmt.Sprintf("repo:%s/%s is:open is:pr", owner, repo), &github.SearchOptions{ListOptions: github.ListOptions{PerPage: 100}})
+	prs, _, err := client.Search.Issues(ctx, fmt.Sprintf("repo:%s/%s is:open is:pr", owner, repo), &github.SearchOptions{PerPage: 100})
 	if err != nil {
 		return values, err
 	}
@@ -243,6 +249,12 @@ func completePath(ctx context.Context, client *github.Client, resolved map[strin
 	}
 	if refVal == "" {
 		refVal = resolved["tag"]
+	}
+	if refVal == "" && resolved["prNumber"] != "" {
+		if _, err := strconv.Atoi(resolved["prNumber"]); err != nil {
+			return nil, fmt.Errorf("invalid pull request number: %w", err)
+		}
+		refVal = "refs/pull/" + resolved["prNumber"] + "/head"
 	}
 	if refVal == "" {
 		refVal = "HEAD"
@@ -293,8 +305,8 @@ func completePath(ctx context.Context, client *github.Client, resolved map[strin
 	// Optionally filter by argValue (if user is typing after last slash)
 	var filter string
 	if argValue != "" {
-		if lastSlash := strings.LastIndex(argValue, "/"); lastSlash >= 0 {
-			filter = argValue[lastSlash+1:]
+		if _, after, ok := strings.CutLast(argValue, "/"); ok {
+			filter = after
 		} else {
 			filter = argValue
 		}
@@ -321,8 +333,8 @@ func completePath(ctx context.Context, client *github.Client, resolved map[strin
 			values = append(values, file)
 		} else {
 			last := file
-			if idx := strings.LastIndex(file, "/"); idx >= 0 {
-				last = file[idx+1:]
+			if _, after, ok := strings.CutLast(file, "/"); ok {
+				last = after
 			}
 			if strings.HasPrefix(last, filter) {
 				values = append(values, file)
